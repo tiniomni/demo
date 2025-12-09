@@ -4,6 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <base href="/">
   <link rel="icon" href="https://public-frontend-cos.metadl.com/mgx/img/favicon.png" type="image/png">
   <title>Tini-Omni 语音助手</title>
   <meta name="description" content="端到端语音转换AI模型，GPU加速推理，实时处理" />
@@ -15,8 +16,26 @@
   <meta property="og:description" content="端到端语音转换AI模型，GPU加速推理，实时处理" />
   <meta property="og:type" content="website" />
 
-  <script type="module" crossorigin src="assets/index-BUql4UV8.js"></script>
-  <link rel="stylesheet" crossorigin href="assets/index-DG2bBh1E.css">
+  <script>
+    // SPA 路由处理：处理 404 重定向和 /index.html 路径
+    (function() {
+      // 从 404.html 重定向回来，恢复原始 URL
+      var redirect = sessionStorage.redirect;
+      delete sessionStorage.redirect;
+      if (redirect && redirect !== location.href) {
+        history.replaceState(null, null, redirect);
+      }
+      
+      // 移除 /index.html 后缀
+      if (window.location.pathname.endsWith('/index.html')) {
+        var newPath = window.location.pathname.replace('/index.html', '/');
+        window.history.replaceState(null, '', newPath + window.location.search + window.location.hash);
+      }
+    })();
+  </script>
+
+  <script type="module" crossorigin src="./assets/index-BUql4UV8.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-DG2bBh1E.css">
 </head>
 
 <body>
