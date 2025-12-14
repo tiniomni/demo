@@ -15,6 +15,7 @@ export default function Index() {
   const [success, setSuccess] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -25,7 +26,7 @@ export default function Index() {
   const audioPlayerRef = useRef<HTMLAudioElement>(null);
   const sessionIdRef = useRef<string | null>(null);
 
-  // API配置 - 使用后端 FastAPI 的实际端口（start_api.sh 中为 1020）
+  // API配置 - 使用服务端 FastAPI 的实际端口（start_api.sh 中为 1020）
   const API_BASE_URL = 'https://mnemic-trudie-waterlessly.ngrok-free.dev';
 
   useEffect(() => {
@@ -115,7 +116,7 @@ export default function Index() {
       // 为本次录音生成一个会话 ID，用于流式上传
       sessionIdRef.current = crypto.randomUUID();
 
-      // 使用浏览器支持的 webm 容器，由后端统一转换为 WAV
+      // 使用浏览器支持的 webm 容器，由服务端统一转换为 WAV
       let mediaRecorder: MediaRecorder;
       try {
         mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
@@ -131,7 +132,7 @@ export default function Index() {
           // 在前端保留完整音频，便于显示大小或后续扩展
           audioChunksRef.current.push(event.data);
 
-          // 录音过程中，持续将分片发送到后端进行实时写入
+          // 录音过程中，持续将分片发送到服务端进行实时写入
           if (sessionIdRef.current) {
             try {
               await fetch(`${API_BASE_URL}/api/stream/chunk?session_id=${sessionIdRef.current}`, {
@@ -157,7 +158,7 @@ export default function Index() {
           cancelAnimationFrame(animationRef.current);
         }
 
-        // 可选：通知后端本次录音结束，仅作标记，不触发推理
+        // 可选：通知服务端本次录音结束，仅作标记，不触发推理
         if (sessionIdRef.current) {
           try {
             await fetch(
@@ -170,7 +171,7 @@ export default function Index() {
               }
             );
           } catch (e) {
-            console.error('通知后端录音结束失败:', e);
+            console.error('通知服务端录音结束失败:', e);
           }
         }
       };
@@ -195,6 +196,35 @@ export default function Index() {
     const file = event.target.files?.[0];
     if (file) {
       // 验证文件格式
+      if (!file.name.toLowerCase().endsWith('.wav')) {
+        setError('仅支持 WAV 格式文件');
+        return;
+      }
+      setError(null);
+      setSuccess(null);
+      setAudioBlob(file);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
       if (!file.name.toLowerCase().endsWith('.wav')) {
         setError('仅支持 WAV 格式文件');
         return;
@@ -265,7 +295,11 @@ export default function Index() {
       setProcessedAudioUrl(url);
       setSuccess('音频处理完成！');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '处理失败，请检查后端服务是否运行');
+      // 统一显示友好的错误提示
+      const errorMessage = err instanceof Error && err.message.includes('服务器错误')
+        ? err.message
+        : '服务繁忙，请稍后重试';
+      setError(errorMessage);
       console.error('处理错误:', err);
     } finally {
       setIsProcessing(false);
@@ -369,7 +403,10 @@ export default function Index() {
                     />
                     {!isRecording && (
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <p className="text-gray-400 text-sm">点击下方按钮开始录音</p>
+                        <div className="text-center">
+                          <p className="text-gray-400 text-sm">点击下方按钮开始录音</p>
+                          <p className="text-gray-400 text-sm mt-1">仅支持英文对话</p>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -388,9 +425,18 @@ export default function Index() {
                 </TabsContent>
                 
                 <TabsContent value="upload" className="space-y-4">
-                  <div className="border-2 border-dashed border-pink-200 rounded-xl p-12 text-center hover:border-pink-400 hover:bg-pink-50/50 transition-all duration-300 backdrop-blur-sm">
+                  <div 
+                    className={`border-2 border-dashed rounded-xl p-12 text-center transition-all duration-300 backdrop-blur-sm ${
+                      isDragging 
+                        ? 'border-pink-500 bg-pink-100/50 scale-[1.02]' 
+                        : 'border-pink-200 hover:border-pink-400 hover:bg-pink-50/50'
+                    }`}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                  >
                     <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-pink-100 to-purple-100 flex items-center justify-center">
-                      <Upload className="h-8 w-8 text-pink-500" />
+                      <Upload className={`h-8 w-8 text-pink-500 transition-transform ${isDragging ? 'scale-110' : ''}`} />
                     </div>
                     <label htmlFor="file-upload" className="cursor-pointer">
                       <span className="text-pink-500 hover:text-pink-600 font-medium">
@@ -408,6 +454,7 @@ export default function Index() {
                     <p className="text-sm text-gray-400 mt-3">
                       仅支持 WAV 格式
                     </p>
+                    <p className="text-gray-400 text-sm mt-1">仅支持英文对话</p>
                   </div>
                 </TabsContent>
               </Tabs>
@@ -558,7 +605,7 @@ export default function Index() {
               <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0 mt-0.5">
                 <span className="text-purple-600 text-sm font-bold">2</span>
               </div>
-              <p><strong className="text-gray-800">处理音频</strong>：点击"开始处理"按钮，将音频发送到后端进行 AI 模型推理</p>
+              <p><strong className="text-gray-800">处理音频</strong>：点击"开始处理"按钮，将音频发送到服务端进行 AI 模型推理</p>
             </div>
             <div className="flex items-start gap-3">
               <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
