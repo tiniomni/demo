@@ -4,7 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Mic, Upload, Download, Play, Pause, AlertCircle, CheckCircle2, Sparkles } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Mic, Upload, Download, Play, Pause, AlertCircle, CheckCircle2, Sparkles, Settings } from 'lucide-react';
+
+const DEFAULT_API_URL = 'https://mnemic-trudie-waterlessly.ngrok-free.dev';
+const API_URL_STORAGE_KEY = 'tini-omni-api-url';
 
 export default function Index() {
   const [isRecording, setIsRecording] = useState(false);
@@ -16,6 +21,11 @@ export default function Index() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [apiUrl, setApiUrl] = useState<string>(() => {
+    return localStorage.getItem(API_URL_STORAGE_KEY) || DEFAULT_API_URL;
+  });
+  const [tempApiUrl, setTempApiUrl] = useState(apiUrl);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -26,8 +36,21 @@ export default function Index() {
   const audioPlayerRef = useRef<HTMLAudioElement>(null);
   const sessionIdRef = useRef<string | null>(null);
 
-  // API配置 - 使用服务端 FastAPI 的实际端口（start_api.sh 中为 1020）
-  const API_BASE_URL = 'https://mnemic-trudie-waterlessly.ngrok-free.dev';
+  // API 地址从 state 获取，支持热更换
+  const API_BASE_URL = apiUrl;
+
+  const saveApiUrl = () => {
+    const trimmedUrl = tempApiUrl.trim().replace(/\/+$/, ''); // 移除末尾斜杠
+    setApiUrl(trimmedUrl);
+    localStorage.setItem(API_URL_STORAGE_KEY, trimmedUrl);
+    setSettingsOpen(false);
+    setSuccess('API 地址已更新');
+    setTimeout(() => setSuccess(null), 3000);
+  };
+
+  const resetApiUrl = () => {
+    setTempApiUrl(DEFAULT_API_URL);
+  };
 
   useEffect(() => {
     return () => {
@@ -329,6 +352,52 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 relative overflow-hidden">
+      {/* 设置按钮 */}
+      <Dialog open={settingsOpen} onOpenChange={(open) => {
+        setSettingsOpen(open);
+        if (open) setTempApiUrl(apiUrl);
+      }}>
+        <DialogTrigger asChild>
+          <Button
+            variant="outline"
+            size="icon"
+            className="fixed top-4 right-4 z-50 bg-white/80 backdrop-blur-sm border-pink-200 hover:bg-pink-50 hover:border-pink-300"
+          >
+            <Settings className="h-5 w-5 text-gray-600" />
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>API 设置</DialogTitle>
+            <DialogDescription>
+              配置后端 API 地址，修改后立即生效，无需重启
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">API 地址</label>
+              <Input
+                value={tempApiUrl}
+                onChange={(e) => setTempApiUrl(e.target.value)}
+                placeholder="https://example.ngrok-free.dev"
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-gray-500">
+                当前使用: <code className="bg-gray-100 px-1 py-0.5 rounded">{apiUrl}</code>
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={saveApiUrl} className="flex-1 bg-gradient-to-r from-pink-400 to-purple-400 hover:from-pink-500 hover:to-purple-500">
+                保存
+              </Button>
+              <Button onClick={resetApiUrl} variant="outline" className="border-gray-300">
+                重置默认
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* 动态背景装饰 - 糖果色 */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-pink-300/20 rounded-full blur-3xl animate-pulse" />
